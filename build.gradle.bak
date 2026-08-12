@@ -1,0 +1,30 @@
+plugins {
+    id('java')
+    id('io.papermc.paperweight.userdev') version '1.7.1'
+}
+
+group = 'smorki'
+version = '1.5'
+description = 'DonutRtp Random Teleport Plugin'
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://repo.papermc.io/repository/maven-public/'
+    }
+}
+
+dependencies {
+    paperweight.paperApi('1.21')
+}
+
+tasks {
+    compileJava {
+        options.encoding = 'UTF-8'
+        options.release.set(21)
+    }
+}

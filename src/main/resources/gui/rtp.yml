@@ -1,0 +1,33 @@
+title: '&8Random Teleport'
+rows: 3
+worlds:
+  overworld:
+    slot: 11
+    world: world
+    material: GRASS_BLOCK
+    name: '&#00FF89Overworld'
+    lore:
+      - '&fClick to random teleport'
+      - ''
+      - '&7Player (&#00A0FC%players%&7)'
+    permission: ''
+  nether:
+    slot: 13
+    world: world_nether
+    material: NETHERRACK
+    name: '&#00FF89Nether'
+    lore:
+      - '&fClick to random teleport'
+      - ''
+      - '&7Player (&#00A0FC%players%&7)'
+    permission: ''
+  end:
+    slot: 15
+    world: world_the_end
+    material: END_STONE
+    name: '&#00FF89End'
+    lore:
+      - '&7Click to random teleport'
+      - ''
+      - '&7Player (&#00A0FC%players%&7)'
+    permission: ''

@@ -1,0 +1,75 @@
+####################################################################
+#                                                                  #
+#                     DONUT RTP v1.5                              #
+#                                                                  #
+####################################################################
+# This Plugin is from Smorki
+
+
+# DONUT RTP - Random Teleport Plugin
+
+
+#
+blacklisted-blocks:
+  - LAVA
+  - WATER
+blacklisted-biomes:
+  - BEACH
+#The range you're allowed to walk to not cancel teleport.
+allowed-walk-range: 3
+#the cooldown time in seconds
+wait-time-seconds: 5
+#cooldown time in seconds
+default-cooldown-seconds: 60
+#how many locations should we calculate ahead?
+#increase this if you get "We couldn't find a safe location!" often
+#if you are preparing to open the server for a bunch of players, it can be a good idea to set this higher
+pregenerate-location-amount: 10
+#these effects will be given when a player random teleports.
+effects-on-random-teleport:
+  '1':
+    type: ABSORPTION
+    level: 10
+    seconds: 10
+world-settings:
+  overworld-region:
+    world: world
+    min-x: -50000
+    max-x: 50000
+    min-z: -50000
+    max-z: 50000
+  nether-region:
+    world: world_nether
+    min-x: -50000
+    max-x: 50000
+    min-z: -50000
+    max-z: 50000
+  end-region:
+    world: world_the_end
+    min-x: -50000
+    max-x: 50000
+    min-z: -50000
+    max-z: 50000
+#This require WorldGuard to work.
+#Placeholder for countdown: %donutrtp_zone_countdown_<name>%
+rtp-zones:
+  '1':
+    enabled: true
+    #The worldguard region name.
+    zone-region: rtpzone
+    zone-world: world
+    #This is in seconds.
+    cooldown-time: 60
+    minimum-players: 1
+    arena-distance: 10
+    glowing-duration: 6
+    #The world it's going to random teleport.
+    rtp-worlds:
+      - world
+sound:
+  teleport_cooldown: block.note_block.pling
+  teleporting: entity.enderman.teleport
+  button_click: ui.button.click
+  teleport_success: entity.player.levelup
+  teleport_fail: entity.villager.no
+  reload: entity.experience_orb.pickup
