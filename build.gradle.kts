@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "smorki"
-version = "1.5"
+version = "1.5.1"
 description = "DonutRtp Random Teleport Plugin"
 
 java {

@@ -1,33 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  com.sk89q.worldedit.bukkit.BukkitAdapter
- *  com.sk89q.worldedit.math.BlockVector3
- *  com.sk89q.worldedit.world.World
- *  com.sk89q.worldguard.WorldGuard
- *  com.sk89q.worldguard.protection.ApplicableRegionSet
- *  com.sk89q.worldguard.protection.managers.RegionManager
- *  com.sk89q.worldguard.protection.regions.RegionContainer
- *  io.papermc.paper.threadedregions.scheduler.ScheduledTask
- *  me.clip.placeholderapi.expansion.PlaceholderExpansion
- *  org.bukkit.Bukkit
- *  org.bukkit.Location
- *  org.bukkit.World
- *  org.bukkit.configuration.ConfigurationSection
- *  org.bukkit.entity.Player
- *  org.bukkit.event.EventHandler
- *  org.bukkit.event.Listener
- *  org.bukkit.event.player.PlayerJoinEvent
- *  org.bukkit.event.player.PlayerMoveEvent
- *  org.bukkit.event.player.PlayerQuitEvent
- *  org.bukkit.event.player.PlayerTeleportEvent
- *  org.bukkit.plugin.Plugin
- *  org.bukkit.potion.PotionEffect
- *  org.bukkit.potion.PotionEffectType
- *  org.jetbrains.annotations.NotNull
- *  org.jetbrains.annotations.Nullable
- */
 package smorki.rtp.Manager;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
@@ -36,10 +6,13 @@ import com.sk89q.worldedit.world.World;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
 import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -63,11 +36,9 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import smorki.rtp.Hex;
-import smorki.rtp.Manager.RTPManager;
 import smorki.rtp.RTP;
 
-public class RTPZoneManager
-implements Listener {
+public class RTPZoneManager implements Listener {
     private final RTP plugin;
     private final RTPManager rtpManager;
     private final Map<String, RTPZone> rtpZones;
@@ -79,9 +50,9 @@ implements Listener {
     public RTPZoneManager(RTP plugin, RTPManager rtpManager) {
         this.plugin = plugin;
         this.rtpManager = rtpManager;
-        this.rtpZones = new HashMap<String, RTPZone>();
-        this.zoneTimers = new ConcurrentHashMap<String, ZoneGlobalTimer>();
-        this.playerZone = new ConcurrentHashMap<UUID, String>();
+        this.rtpZones = new HashMap<>();
+        this.zoneTimers = new ConcurrentHashMap<>();
+        this.playerZone = new ConcurrentHashMap<>();
         this.random = new Random();
         this.loadRTPZones();
         this.registerPlaceholderAPI();
@@ -90,8 +61,7 @@ implements Listener {
     }
 
     private void registerEvents() {
-        this.plugin.getServer().getPluginManager().registerEvents((Listener)this, (Plugin)this.plugin);
-        this.plugin.getLogger().info("\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000");
+        this.plugin.getServer().getPluginManager().registerEvents(this, this.plugin);
     }
 
     private void registerPlaceholderAPI() {
@@ -118,7 +88,7 @@ implements Listener {
             String zoneWorld = this.plugin.getConfig().getString(path + ".zone-world");
             int cooldownTime = this.plugin.getConfig().getInt(path + ".cooldown-time", 60);
             int minimumPlayers = this.plugin.getConfig().getInt(path + ".minimum-players", 1);
-            List rtpWorlds = this.plugin.getConfig().getStringList(path + ".rtp-worlds");
+            List<String> rtpWorlds = this.plugin.getConfig().getStringList(path + ".rtp-worlds");
             if (zoneRegion == null || zoneWorld == null || rtpWorlds.isEmpty()) continue;
             RTPZone zone = new RTPZone(zoneId, zoneRegion, zoneWorld, cooldownTime, minimumPlayers, rtpWorlds);
             this.rtpZones.put(zoneId, zone);
@@ -136,12 +106,12 @@ implements Listener {
         String zoneId = zone.getId();
         int cooldownSeconds = zone.getCooldownTime();
         int[] remaining = new int[]{cooldownSeconds};
-        ScheduledTask task = Bukkit.getGlobalRegionScheduler().runAtFixedRate((Plugin)this.plugin, scheduledTask -> {
+        ScheduledTask task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(this.plugin, scheduledTask -> {
             if (remaining[0] <= 0) {
                 ZoneGlobalTimer timer = this.zoneTimers.get(zoneId);
                 if (timer != null) {
                     for (UUID pid : timer.playersInZone) {
-                        Player p = Bukkit.getPlayer((UUID)pid);
+                        Player p = Bukkit.getPlayer(pid);
                         if (p == null || !p.isOnline()) continue;
                         this.teleportPlayerFromZone(p, zone);
                     }
@@ -171,18 +141,26 @@ implements Listener {
     @EventHandler
     public void onPlayerTeleport(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
-        player.getScheduler().runDelayed((Plugin)this.plugin, scheduledTask -> this.updatePlayerZone(player), null, 2L);
+        player.getScheduler().runDelayed(this.plugin, scheduledTask -> this.updatePlayerZone(player), null, 2L);
     }
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
-        Player player = event.getPlayer();
         Location from = event.getFrom();
         Location to = event.getTo();
         if (to == null) {
             return;
         }
-        this.updatePlayerZone(player);
+
+        // OPTİMİZASYON: Yalnızca oyuncu FARKLI BİR BLOĞA geçtiğinde kontrol et (yaw/pitch ve sub-block hareketlerini yok say)
+        if (from.getBlockX() == to.getBlockX() &&
+                from.getBlockY() == to.getBlockY() &&
+                from.getBlockZ() == to.getBlockZ() &&
+                Objects.equals(from.getWorld(), to.getWorld())) {
+            return;
+        }
+
+        this.updatePlayerZone(event.getPlayer());
     }
 
     @EventHandler
@@ -196,20 +174,25 @@ implements Listener {
     }
 
     private void updatePlayerZone(Player player) {
-        ZoneGlobalTimer oldTimer;
-        String oldZoneId;
         UUID playerId = player.getUniqueId();
         RTPZone zone = this.getZoneAtLocation(player);
         String newZoneId = zone != null ? zone.getId() : null;
-        if (Objects.equals(newZoneId, oldZoneId = this.playerZone.get(playerId))) {
+        String oldZoneId = this.playerZone.get(playerId);
+
+        if (Objects.equals(newZoneId, oldZoneId)) {
             return;
         }
-        if (oldZoneId != null && (oldTimer = this.zoneTimers.get(oldZoneId)) != null) {
-            oldTimer.playersInZone.remove(playerId);
-            String leaveMessage = this.plugin.getLangConfig().getString("messages.zone-leave-message", "&fYou left the &c%zone% Zone&f!");
-            leaveMessage = leaveMessage.replace("%zone%", zone != null ? zone.getZoneRegion() : oldZoneId);
-            player.sendMessage(Hex.translateAllColorCodes(leaveMessage));
+
+        if (oldZoneId != null) {
+            ZoneGlobalTimer oldTimer = this.zoneTimers.get(oldZoneId);
+            if (oldTimer != null) {
+                oldTimer.playersInZone.remove(playerId);
+                String leaveMessage = this.plugin.getLangConfig().getString("messages.zone-leave-message", "&fYou left the &c%zone% Zone&f!");
+                leaveMessage = leaveMessage.replace("%zone%", zone != null ? zone.getZoneRegion() : oldZoneId);
+                player.sendMessage(Hex.translateAllColorCodes(leaveMessage));
+            }
         }
+
         if (newZoneId != null) {
             this.playerZone.put(playerId, newZoneId);
             ZoneGlobalTimer timer = this.zoneTimers.get(newZoneId);
@@ -239,7 +222,7 @@ implements Listener {
             return;
         }
         String worldName = worlds.get(this.random.nextInt(worlds.size()));
-        org.bukkit.World targetWorld = Bukkit.getWorld((String)worldName);
+        org.bukkit.World targetWorld = Bukkit.getWorld(worldName);
         if (targetWorld == null) {
             return;
         }
@@ -247,25 +230,26 @@ implements Listener {
         int glowingDuration = this.plugin.getConfig().getInt("rtp-zones." + zone.getId() + ".glowing-duration", 6);
         this.rtpManager.findSafeLocationAsync(targetWorld).thenAccept(centerLocation -> {
             if (centerLocation == null) {
-                player.getScheduler().run((Plugin)this.plugin, task -> {}, null);
+                player.getScheduler().run(this.plugin, task -> {}, null);
                 return;
             }
-            this.findLocationInRadius(player, targetWorld, (Location)centerLocation, arenaDistance, zone, glowingDuration);
+            this.findLocationInRadius(player, targetWorld, centerLocation, arenaDistance, zone, glowingDuration);
         });
     }
 
     private void findLocationInRadius(Player player, org.bukkit.World world, Location center, int radius, RTPZone zone, int glowingDuration) {
         for (int attempt = 0; attempt < 20; ++attempt) {
-            Location location;
-            int z;
             int offsetX = this.random.nextInt(radius * 2) - radius;
             int offsetZ = this.random.nextInt(radius * 2) - radius;
             int x = center.getBlockX() + offsetX;
-            int y = world.getHighestBlockYAt(x, z = center.getBlockZ() + offsetZ) + 1;
-            if (y <= world.getMinHeight() || y >= world.getMaxHeight() || !this.rtpManager.isLocationSafe(location = new Location(world, (double)x + 0.5, (double)y, (double)z + 0.5))) continue;
-            Location finalLocation = location;
-            player.getScheduler().run((Plugin)this.plugin, task -> player.teleportAsync(finalLocation).thenAccept(success -> {
-                if (success.booleanValue()) {
+            int z = center.getBlockZ() + offsetZ;
+            int y = world.getHighestBlockYAt(x, z) + 1;
+            Location location = new Location(world, (double)x + 0.5, (double)y, (double)z + 0.5);
+
+            if (y <= world.getMinHeight() || y >= world.getMaxHeight() || !this.rtpManager.isLocationSafe(location)) continue;
+
+            player.getScheduler().run(this.plugin, task -> player.teleportAsync(location).thenAccept(success -> {
+                if (Boolean.TRUE.equals(success)) {
                     String teleportedMessage = this.plugin.getLangConfig().getString("messages.teleported-message", "&aSuccessfully teleported");
                     this.rtpManager.playSound(player, "teleport_success");
                     player.sendMessage(Hex.translateAllColorCodes(teleportedMessage));
@@ -274,9 +258,8 @@ implements Listener {
             }), null);
             return;
         }
-        Location finalCenter = center;
-        player.getScheduler().run((Plugin)this.plugin, task -> player.teleportAsync(finalCenter).thenAccept(success -> {
-            if (success.booleanValue()) {
+        player.getScheduler().run(this.plugin, task -> player.teleportAsync(center).thenAccept(success -> {
+            if (Boolean.TRUE.equals(success)) {
                 String teleportedMessage = this.plugin.getLangConfig().getString("messages.teleported-message", "&aSuccessfully teleported");
                 this.rtpManager.playSound(player, "teleport_success");
                 player.sendMessage(Hex.translateAllColorCodes(teleportedMessage));
@@ -289,18 +272,16 @@ implements Listener {
         if (glowingDuration <= 0) {
             return;
         }
-        player.getScheduler().run((Plugin)this.plugin, task -> {
+        player.getScheduler().run(this.plugin, task -> {
             player.setGlowing(true);
             try {
                 PotionEffectType glow = PotionEffectType.GLOWING;
                 if (glow != null) {
                     player.addPotionEffect(new PotionEffect(glow, glowingDuration * 20, 0, true, false, true));
                 }
-            }
-            catch (Exception exception) {
-                // empty catch block
-            }
-            player.getScheduler().runDelayed((Plugin)this.plugin, removeTask -> {
+            } catch (Exception ignored) {}
+
+            player.getScheduler().runDelayed(this.plugin, removeTask -> {
                 if (player.isOnline()) {
                     player.setGlowing(false);
                     try {
@@ -308,10 +289,7 @@ implements Listener {
                         if (glow != null) {
                             player.removePotionEffect(glow);
                         }
-                    }
-                    catch (Exception exception) {
-                        // empty catch block
-                    }
+                    } catch (Exception ignored) {}
                 }
             }, null, (long)glowingDuration * 20L);
         }, null);
@@ -325,10 +303,6 @@ implements Listener {
         return 0;
     }
 
-    private boolean hasBypass(Player player) {
-        return player.isOp() || player.hasPermission("rtp.bypass");
-    }
-
     public Map<String, RTPZone> getRTPZones() {
         return this.rtpZones;
     }
@@ -337,12 +311,43 @@ implements Listener {
         return this.rtpZones.get(zoneId);
     }
 
+    /**
+     * OPTİMİZASYON: WorldGuard sorgusu döngünün dışına çıkarıldı.
+     * Artık kaç tane zone olursa olsun tek 1 WorldGuard lookup yapılır.
+     */
     public RTPZone getZoneAtLocation(Player player) {
+        if (this.rtpZones.isEmpty()) return null;
+
         Location loc = player.getLocation();
-        for (RTPZone zone : this.rtpZones.values()) {
-            if (!zone.isPlayerInZone(this.plugin, player, loc)) continue;
-            return zone;
+        org.bukkit.World bukkitWorld = loc.getWorld();
+        if (bukkitWorld == null) return null;
+
+        try {
+            RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
+            World editWorld = BukkitAdapter.adapt(bukkitWorld);
+            RegionManager regionManager = container.get(editWorld);
+            if (regionManager == null) return null;
+
+            BlockVector3 vector = BukkitAdapter.asBlockVector(loc);
+            ApplicableRegionSet regions = regionManager.getApplicableRegions(vector);
+
+            Set<String> regionIdsAtLoc = new HashSet<>();
+            for (ProtectedRegion region : regions) {
+                regionIdsAtLoc.add(region.getId().toLowerCase(Locale.ROOT));
+            }
+
+            if (regionIdsAtLoc.isEmpty()) return null;
+
+            for (RTPZone zone : this.rtpZones.values()) {
+                if (zone.getZoneWorld().equalsIgnoreCase(bukkitWorld.getName()) &&
+                        regionIdsAtLoc.contains(zone.getZoneRegion().toLowerCase(Locale.ROOT))) {
+                    return zone;
+                }
+            }
+        } catch (Exception e) {
+            return null;
         }
+
         return null;
     }
 
@@ -362,31 +367,34 @@ implements Listener {
         }
     }
 
-    private class RTPExpansion
-    extends PlaceholderExpansion {
-        private RTPExpansion() {
-        }
+    private class RTPExpansion extends PlaceholderExpansion {
+        private RTPExpansion() {}
 
         @NotNull
+        @Override
         public String getIdentifier() {
             return "donutrtp";
         }
 
         @NotNull
+        @Override
         public String getAuthor() {
             return "Smorki";
         }
 
         @NotNull
+        @Override
         public String getVersion() {
             return RTPZoneManager.this.plugin.getDescription().getVersion();
         }
 
+        @Override
         public boolean persist() {
             return true;
         }
 
         @Nullable
+        @Override
         public String onPlaceholderRequest(Player player, @NotNull String identifier) {
             if (player == null) {
                 return "";
@@ -404,14 +412,16 @@ implements Listener {
                 }
                 return "unknown";
             }
+
+            // OPTİMİZASYON: Placeholder requestlerinde WorldGuard çağırmak yerine cache Map'imizden okunur.
             if (identifier.equals("current_zone")) {
-                RTPZone zone = RTPZoneManager.this.getZoneAtLocation(player);
-                return zone != null ? zone.getId() : "none";
+                String zoneId = RTPZoneManager.this.playerZone.get(player.getUniqueId());
+                return zoneId != null ? zoneId : "none";
             }
             if (identifier.equals("current_zone_cooldown")) {
-                RTPZone zone = RTPZoneManager.this.getZoneAtLocation(player);
-                if (zone != null) {
-                    return String.valueOf(RTPZoneManager.this.getRemainingSeconds(player, zone.getId()));
+                String zoneId = RTPZoneManager.this.playerZone.get(player.getUniqueId());
+                if (zoneId != null) {
+                    return String.valueOf(RTPZoneManager.this.getRemainingSeconds(player, zoneId));
                 }
                 return "0";
             }
@@ -463,26 +473,6 @@ implements Listener {
         public List<String> getRtpWorlds() {
             return this.rtpWorlds;
         }
-
-        public boolean isPlayerInZone(RTP plugin, Player player, Location loc) {
-            if (!loc.getWorld().getName().equals(this.zoneWorld)) {
-                return false;
-            }
-            try {
-                RegionContainer container = WorldGuard.getInstance().getPlatform().getRegionContainer();
-                World editWorld = BukkitAdapter.adapt((org.bukkit.World)loc.getWorld());
-                RegionManager regionManager = container.get(editWorld);
-                if (regionManager == null) {
-                    return false;
-                }
-                BlockVector3 vector = BukkitAdapter.asBlockVector((Location)loc);
-                ApplicableRegionSet regions = regionManager.getApplicableRegions(vector);
-                return regions.getRegions().stream().anyMatch(r -> r.getId().equalsIgnoreCase(this.zoneRegion));
-            }
-            catch (Exception e) {
-                return false;
-            }
-        }
     }
 
     private static class ZoneGlobalTimer {
@@ -499,4 +489,3 @@ implements Listener {
         }
     }
 }
-
